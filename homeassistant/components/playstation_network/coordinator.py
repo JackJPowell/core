@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import logging
-from typing import Any
 
 from psnawp_api.core.psnawp_exceptions import PSNAWPAuthenticationError
 
@@ -22,20 +21,16 @@ class PlaystationNetworkData:
 
     presence: dict
     username: str
-    title_metadata: dict
-    title_details: dict
-    platform: dict
+    account_id: str
     available: bool
-    online_status: bool
-    recent_titles: list
-    country: str | None
-    language: str | None
+    title_metadata: dict
+    platform: dict
 
 
-class PlaystationNetworkCoordinator(DataUpdateCoordinator[dict[str, Any]]):
+class PlaystationNetworkCoordinator(DataUpdateCoordinator[PlaystationNetworkData]):
     """Data update coordinator for PSN."""
 
-    def __init__(self, hass: HomeAssistant, api, user, client) -> None:
+    def __init__(self, hass: HomeAssistant, user) -> None:
         """Initialize the Coordinator."""
         super().__init__(
             hass,
@@ -44,15 +39,16 @@ class PlaystationNetworkCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             update_interval=DEVICE_SCAN_INTERVAL,
         )
 
-        self.api = api
         self.user = user
-        self.client = client
-        self.psn = PlaystationNetworkData({}, "", {}, {}, {}, False, False, [], "", "")
+        self.psn: PlaystationNetworkData = PlaystationNetworkData(
+            {}, "", "", False, {}, {}
+        )
 
-    async def _async_update_data(self) -> dict[str, Any]:
+    async def _async_update_data(self) -> PlaystationNetworkData:
         """Get the latest data from the PSN."""
         try:
             self.psn.username = self.user.online_id
+            self.psn.account_id = self.user.account_id
             self.psn.presence = await self.hass.async_add_executor_job(
                 self.user.get_presence
             )
@@ -64,47 +60,14 @@ class PlaystationNetworkCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self.psn.platform = self.psn.presence.get("basicPresence", {}).get(
                 "primaryPlatformInfo"
             )
-            try:
-                self.psn.title_metadata = self.psn.presence.get(
-                    "basicPresence", {}
-                ).get("gameTitleInfoList")[0]
-            except Exception:  # noqa: BLE001
-                self.psn.title_metadata = {}
+            game_title_info_list = self.psn.presence.get("basicPresence", {}).get(
+                "gameTitleInfoList"
+            )
 
-            self.psn.country = self.hass.config.country
-            self.psn.language = self.hass.config.language
+            if game_title_info_list:
+                self.psn.title_metadata = game_title_info_list[0]
 
-            if (
-                self.psn.available is True
-                and self.psn.title_metadata.get("npTitleId") is not None
-            ):
-                title_id = self.psn.title_metadata.get("npTitleId")
-                title = await self.hass.async_add_executor_job(
-                    lambda: self.api.game_title(title_id, "me")
-                )
-                ## Attempt to pull details with user's country and language code
-                self.psn.title_details = await self.hass.async_add_executor_job(
-                    lambda: title.get_details(
-                        self.hass.config.country, self.hass.config.language
-                    )
-                )
-                ## If we receive an error, fall back to english
-                if self.psn.title_details[0].get("errorCode") is not None:
-                    self.psn.title_details = await self.hass.async_add_executor_job(
-                        title.get_details
-                    )
-
-                titles_with_stats = await self.hass.async_add_executor_job(
-                    lambda: self.client.title_stats(limit=3, page_size=3)
-                )
-                await self.hass.async_add_executor_job(
-                    lambda: self._get_titles(titles_with_stats)
-                )
-
-            return self.data  # noqa: TRY300
         except PSNAWPAuthenticationError as error:
             raise UpdateFailed(error) from error
 
-    def _get_titles(self, titles):
-        for title in titles:
-            self.psn.recent_titles.append(title)
+        return self.psn

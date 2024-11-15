@@ -38,8 +38,8 @@ async def async_setup_entry(
     """Media Player Entity Setup."""
     coordinator: PlaystationNetworkCoordinator = config_entry.runtime_data
 
-    if coordinator.psn.platform.get("platform") is None:
-        username = coordinator.psn.username
+    if coordinator.data.platform.get("platform") is None:
+        username = coordinator.data.username
         _LOGGER.warning(
             "No console found associated with account: %s. -- Skipping creation of media player",
             username,
@@ -57,7 +57,7 @@ class MediaPlayer(PlaystationNetworkEntity, MediaPlayerEntity):
     def __init__(self, coordinator: PlaystationNetworkCoordinator) -> None:
         """Initialize PSN MediaPlayer."""
         super().__init__(coordinator)
-        self.psn: PlaystationNetworkData = self.coordinator.psn
+        self.psn: PlaystationNetworkData = self.coordinator.data
         self._attr_has_entity_name = True
 
     @property

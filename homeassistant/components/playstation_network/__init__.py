@@ -32,13 +32,12 @@ async def async_setup_entry(
 
     try:
         user = await hass.async_add_executor_job(lambda: psn.user(online_id="me"))
-        client = psn.me()
     except PSNAWPAuthenticationError as error:
         raise ConfigEntryAuthFailed(error) from error
     except Exception as ex:
         raise ConfigEntryNotReady(ex) from ex
 
-    coordinator = PlaystationNetworkCoordinator(hass, psn, user, client)
+    coordinator = PlaystationNetworkCoordinator(hass, user)
     await coordinator.async_config_entry_first_refresh()
     entry.runtime_data = coordinator
 

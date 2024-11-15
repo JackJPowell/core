@@ -28,8 +28,8 @@ class PlaystationNetworkEntity(CoordinatorEntity[PlaystationNetworkCoordinator])
     def device_info(self) -> DeviceInfo:
         """Return the device info."""
         username: str = "PSN"
-        if len(self.coordinator.psn.username) > 0:
-            username = str(self.coordinator.psn.username)
+        if len(self.coordinator.data.username) > 0:
+            username = str(self.coordinator.data.username)
 
         return DeviceInfo(
             identifiers={(DOMAIN, username)},
